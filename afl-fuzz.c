@@ -1962,13 +1962,13 @@ static void destroy_extras(void) {
 
   for (i = 0; i < extras_cnt; i++) 
     ck_free(extras[i].data);
-
-  ck_free(extras);
+  if(extras_cnt>0)
+	  ck_free(extras);
 
   for (i = 0; i < a_extras_cnt; i++) 
     ck_free(a_extras[i].data);
-
-  ck_free(a_extras);
+  if(a_extras_cnt>0)
+	  ck_free(a_extras);
 
 }
 
@@ -2530,6 +2530,96 @@ static void write_with_gap(void* mem, u32 len, u32 skip_at, u32 skip_len) {
 
 }
 
+void destroy_slots_focused(){
+	linked_int *tmp;
+	while(slots_focused){
+		tmp=slots_focused;
+		slots_focused=slots_focused->next;
+		free(tmp);
+	}
+}
+
+static void destroy_others(){
+	destroy_rules(ijon_rules);
+	destroy_rules(candidate_rules);
+	if(old_max_filename);
+	free(old_max_filename);
+	destroy_slots_focused();
+}
+
+static void add_rules_to_extras(){
+	ijon_rule *p=candidate_rules;
+	while(p){
+		extras = ck_realloc_block(extras, (extras_cnt + 1) *
+													   sizeof(struct extra_data));
+		u8* t=(u8*)ck_alloc(p->t_len);
+		memcpy(t,p->t_chunk,p->t_len);
+		extras[extras_cnt].data = t;
+		extras[extras_cnt].len  = p->t_len;
+		extras_cnt++;
+		p=p->next;
+	}
+}
+int check_max_slot_degrade(){
+	if(!slots_focused) FATAL("This should not happen!");
+	linked_int *p=slots_focused;
+	while(p){
+		if(shared_data->afl_max[p->idx]<ijon_state->max_map[p->idx])
+		{
+			//OKF("degrade detected: %lu<%lu",shared_data->afl_max[p->idx],ijon_state->max_map[p->idx]);
+			return 1;
+		}
+
+		p=p->next;
+	}
+	return 0;
+}
+static cnt=0;
+static void calibrate_rules(char** argv, int len, u8* use_mem) {
+	ijon_rule *pre=candidate_rules;
+	ijon_rule *cur=candidate_rules;
+
+	u8  fault = 0;
+	u32 use_tmout = exec_tmout;
+
+	use_tmout = MAX(exec_tmout + CAL_TMOUT_ADD,
+					exec_tmout * CAL_TMOUT_PERC / 100);
+	u8* tmp_mem = (u8*)malloc(len*sizeof(char));
+	while(cur){
+		memcpy(tmp_mem,use_mem,len);
+		memcpy(tmp_mem+cur->t_offset,cur->s_chunk,cur->s_len);//reverse(cur,tmp_mem);
+		write_to_testcase(tmp_mem, len);
+		fault = run_target(argv, use_tmout);
+		if(!check_max_slot_degrade()){//delete this useless rule
+			if(pre==cur){
+				if(pre==candidate_rules){
+					ijon_rule * t=cur;
+					pre=cur=candidate_rules=cur->next;
+					destroy_rule(t);
+				}else{
+					ijon_rule * t=cur;
+					cur=cur->next;
+					destroy_rule(t);
+				}
+			}else{
+				pre->next=cur->next;
+				ijon_rule * t=cur;
+				cur=cur->next;
+				destroy_rule(t);
+			}
+
+		}else{
+			pre=cur;
+			cur=cur->next;
+		}
+		cnt++;
+		//OKF("cnt=%d",cnt);
+	}
+	cnt=0;
+	destroy_slots_focused();
+	write_to_testcase(use_mem, len);
+	fault = run_target(argv, use_tmout);
+}
 
 static void show_stats(void);
 
@@ -3148,7 +3238,17 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
 
   if (fault == crash_mode) {
     u32 queue_cur_id=get_queue_cur_id(queue_cur->fname);
-    update_max=ijon_update_max(ijon_state, shared_data, mem, len, queue_cur_id,&extras_cnt,&extras);
+    update_max=ijon_update_max(ijon_state, shared_data, mem, len, queue_cur_id);
+    if(update_max){
+    	OKF("2 %p",candidate_rules);
+    	if(!slots_focused){
+    		FATAL("THIS SHOULD NOT HAPPEN!");
+    	}
+    	calibrate_rules(argv, len, mem);
+		add_rules_to_extras();
+		insert_rules_to_ijon_rules(candidate_rules);
+		candidate_rules=NULL;
+    }
 
     /* Keep only if there are new bits in the map, add to queue for
        future fuzzing, etc. */
@@ -3312,6 +3412,7 @@ keep_as_crash:
 		  fclose(plot_file);
 		  destroy_queue();
 		  destroy_extras();
+		  destroy_others();
 		  ck_free(target_path);
 		  ck_free(sync_id);
 		  alloc_report();
@@ -8071,8 +8172,8 @@ int main(int argc, char** argv) {
   if (!strcmp(in_dir, out_dir))
     FATAL("Input and output directories can't be the same");
 
-  assert(asprintf(&import_dir, "%s/imports", out_dir)>0);
-  assert(asprintf(&max_dir, "%s/ijon_max", out_dir)>0);
+  assert(asprintf(&import_dir, "%s/imports", (char*)out_dir)>0);
+  assert(asprintf(&max_dir, "%s/ijon_max", (char*)out_dir)>0);
 
   if (dumb_mode) {
 
@@ -8251,6 +8352,7 @@ stop_fuzzing:
   fclose(plot_file);
   destroy_queue();
   destroy_extras();
+  destroy_others();
   ck_free(target_path);
   ck_free(sync_id);
 

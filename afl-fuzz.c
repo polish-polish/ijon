@@ -267,11 +267,11 @@ static struct queue_entry *queue,     /* Fuzzing queue (linked list)      */
 static struct queue_entry*
   top_rated[MAP_SIZE];                /* Top entries for bitmap bytes     */
 
-struct extra_data {
-  u8* data;                           /* Dictionary token data            */
-  u32 len;                            /* Dictionary token length          */
-  u32 hit_cnt;                        /* Use count in the corpus          */
-};
+//struct extra_data {
+//  u8* data;                           /* Dictionary token data            */
+//  u32 len;                            /* Dictionary token length          */
+//  u32 hit_cnt;                        /* Use count in the corpus          */
+//};//already included in "afl-ijon-min.h"
 
 static struct extra_data* extras;     /* Extra tokens to fuzz with        */
 static u32 extras_cnt;                /* Total number of tokens read      */
@@ -3118,6 +3118,21 @@ static void write_crash_readme(void) {
 
 }
 
+static u32 get_queue_cur_id(char *fname)
+{
+	char * id=malloc(7*sizeof(char));
+	char *p=strstr(fname,":");
+	if(p){
+		strncpy(id,p+1,6);
+		id[6]='\0';
+
+		int ret= atoi(id);
+		free(id);
+		return ret;
+	}else{
+		return -1;
+	}
+}
 
 /* Check if the result of an execve() during routine fuzzing is interesting,
    save or queue the input test case for further analysis if so. Returns 1 if
@@ -3129,11 +3144,11 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
   u8  hnb;
   s32 fd;
   u8  keeping = 0, res;
-
+  int update_max=0;
 
   if (fault == crash_mode) {
-  
-		ijon_update_max(ijon_state, shared_data, mem, len);
+    u32 queue_cur_id=get_queue_cur_id(queue_cur->fname);
+    update_max=ijon_update_max(ijon_state, shared_data, mem, len, queue_cur_id,&extras_cnt,&extras);
 
     /* Keep only if there are new bits in the map, add to queue for
        future fuzzing, etc. */
@@ -3142,7 +3157,7 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
       if (crash_mode) total_crashes++;
       return 0;
     }    
-
+    //OKF("Parent:%s",queue_cur->fname);
 #ifndef SIMPLE_FILES
 
     fn = alloc_printf("%s/queue/id:%06u,%s", out_dir, queued_paths,
@@ -3273,8 +3288,8 @@ keep_as_crash:
 
 #ifndef SIMPLE_FILES
 
-      fn = alloc_printf("%s/crashes/id:%06llu,sig:%02u,%s", out_dir,
-                        unique_crashes, kill_signal, describe_op(0));
+      fn = alloc_printf("%s/crashes/id:%06llu,%llu,sig:%02u,%s", out_dir,
+                        unique_crashes,get_cur_time() - start_time, kill_signal, describe_op(0));
 
 #else
 
@@ -3284,6 +3299,25 @@ keep_as_crash:
 #endif /* ^!SIMPLE_FILES */
 
       unique_crashes++;
+      /* add by yangke start */
+      if(unique_crashes==1||get_cur_time() - start_time>3600000){//
+		  OKF("First Crash is Achieved! Exit now!");
+
+		  fd = open(fn, O_WRONLY | O_CREAT | O_EXCL, 0600);
+		  if (fd < 0) PFATAL("Unable to create '%s'", fn);
+		  ck_write(fd, mem, len, fn);
+		  close(fd);
+		  ck_free(fn);
+		  //clean up
+		  fclose(plot_file);
+		  destroy_queue();
+		  destroy_extras();
+		  ck_free(target_path);
+		  ck_free(sync_id);
+		  alloc_report();
+		  exit(0);
+      }
+      /* add by yangke end */
 
       last_crash_time = get_cur_time();
       last_crash_execs = total_execs;
@@ -6148,8 +6182,10 @@ havoc_stage:
     stage_cur_val = use_stacking;
  
     for (i = 0; i < use_stacking; i++) {
-
-      switch (UR(15 + ((extras_cnt + a_extras_cnt) ? 2 : 0))) {
+      int xxx=UR(15 + ((extras_cnt + a_extras_cnt) ? 2 : 0));
+      if(extras_cnt>0 && UR(3)>0)
+      	  xxx=UR(2)?15:16;
+      switch (xxx) {
 
         case 0:
 
@@ -6433,7 +6469,7 @@ havoc_stage:
 
             /* Overwrite bytes with an extra. */
 
-            if (!extras_cnt || (a_extras_cnt && UR(2))) {
+            if ((!extras_cnt &&  a_extras_cnt) || (a_extras_cnt && UR(2))) {
 
               /* No user-specified extras or odds in our favor. Let's use an
                  auto-detected one. */
@@ -6474,7 +6510,7 @@ havoc_stage:
             /* Insert an extra. Do the same dice-rolling stuff as for the
                previous case. */
 
-            if (!extras_cnt || (a_extras_cnt && UR(2))) {
+            if ((!extras_cnt &&  a_extras_cnt) || (a_extras_cnt && UR(2))) {
 
               use_extra = UR(a_extras_cnt);
               extra_len = a_extras[use_extra].len;

@@ -2574,10 +2574,13 @@ int check_max_slot_degrade(){
 	}
 	return 0;
 }
-static cnt=0;
+static int total_rule_cnt=0;
+static int cand_rule_cnt=0;
 static void calibrate_rules(char** argv, int len, u8* use_mem) {
+
 	ijon_rule *pre=candidate_rules;
 	ijon_rule *cur=candidate_rules;
+	cand_rule_cnt=0;
 
 	u8  fault = 0;
 	u32 use_tmout = exec_tmout;
@@ -2611,11 +2614,10 @@ static void calibrate_rules(char** argv, int len, u8* use_mem) {
 		}else{
 			pre=cur;
 			cur=cur->next;
+			cand_rule_cnt++;
 		}
-		cnt++;
-		//OKF("cnt=%d",cnt);
+
 	}
-	cnt=0;
 	destroy_slots_focused();
 	write_to_testcase(use_mem, len);//recover out_fd
 	fault = run_target(argv, use_tmout);//use the original out_fd as input to recover trace_bits and so on.
@@ -3224,6 +3226,50 @@ static u32 get_queue_cur_id(char *fname)
 	}
 }
 
+static int is_field()
+{
+	int A[8];
+	int cnt=0;
+	if(!ijon_rules)
+		return 0;
+	for(ijon_rule* p=ijon_rules;p->next;p=p->next){
+		int is_new=1;
+		for(int i=0;i<cnt;i++){
+			if(A[i]==p->s_offset){
+				is_new=0;
+			}
+		}
+		if(is_new){
+			if(cnt<8){
+				A[cnt++]=p->s_offset;
+				for(int i=cnt-1;i>1;i--){
+					if(A[i]<A[i-1]){
+						int tmp=A[i];
+						A[i]=A[i-1];
+						A[i-1]=tmp;
+					}
+				}
+			}else{
+				return -1;
+			}
+		}
+	}
+	if(cnt&&(A[cnt-1]-A[0]<=8)){
+		return 1;
+	}else{
+		return -1;
+	}
+
+}
+
+static void print_rules(){
+	int i=0;
+	for(ijon_rule* p=ijon_rules;p->next;p=p->next){
+		OKF("[%d] 0x%x %02x",i++,p->s_offset,p->s_chunk[0]);
+    }
+	OKF("is_field:%d",is_field());
+}
+
 /* Check if the result of an execve() during routine fuzzing is interesting,
    save or queue the input test case for further analysis if so. Returns 1 if
    entry is saved, 0 otherwise. */
@@ -3247,7 +3293,9 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
     	calibrate_rules(argv, len, mem);
 		add_rules_to_extras();
 		insert_rules_to_ijon_rules(candidate_rules);
+		total_rule_cnt+=cand_rule_cnt;
 		candidate_rules=NULL;
+		print_rules();
     }
 
     /* Keep only if there are new bits in the map, add to queue for

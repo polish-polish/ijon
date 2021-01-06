@@ -106,7 +106,7 @@ void add_to_extras(char* oldfile, char* newfile, u32 *p_extras_cnt,struct extra_
 
 void generate_candidate_rules(char* oldfile, char* newfile){
 	char *cmd=NULL;
-	char *prefix="/home/yangke/Program/AFL/aflgo/bak/aflgo-good/tutorial/samples/apps/under-arrestment/liblouis/tools";
+	char *prefix=".";//current directory when running afl-fuzz
 	assert(asprintf(&cmd,"radiff2 -O %s/%s %s/%s 2>&1",prefix,oldfile,prefix,newfile));
 	FILE * fp=popen(cmd,"r");
 	if(!fp){

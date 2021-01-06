@@ -3264,7 +3264,7 @@ static int is_field()
 
 static void print_rules(){
 	int i=0;
-	for(ijon_rule* p=ijon_rules;p->next;p=p->next){
+	for(ijon_rule* p=ijon_rules;p;p=p->next){
 		OKF("[%d] 0x%x %02x",i++,p->s_offset,p->s_chunk[0]);
     }
 	OKF("is_field:%d",is_field());
@@ -3286,16 +3286,17 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
     u32 queue_cur_id=get_queue_cur_id(queue_cur->fname);
     update_max=ijon_update_max(ijon_state, shared_data, mem, len, queue_cur_id);
     if(update_max){
-    	OKF("2 %p",candidate_rules);
-    	if(!slots_focused){
-    		FATAL("THIS SHOULD NOT HAPPEN!");
+    	if(candidate_rules){
+        	if(!slots_focused){
+        		FATAL("THIS SHOULD NOT HAPPEN!");
+        	}
+        	calibrate_rules(argv, len, mem);
+			add_rules_to_extras();
+			insert_rules_to_ijon_rules(candidate_rules);
+			total_rule_cnt+=cand_rule_cnt;
+			candidate_rules=NULL;
+			print_rules();
     	}
-    	calibrate_rules(argv, len, mem);
-		add_rules_to_extras();
-		insert_rules_to_ijon_rules(candidate_rules);
-		total_rule_cnt+=cand_rule_cnt;
-		candidate_rules=NULL;
-		print_rules();
     }
 
     /* Keep only if there are new bits in the map, add to queue for

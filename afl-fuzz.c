@@ -2587,7 +2587,7 @@ static void calibrate_rules(char** argv, int len, u8* use_mem) {
 
 	use_tmout = MAX(exec_tmout + CAL_TMOUT_ADD,
 					exec_tmout * CAL_TMOUT_PERC / 100);
-	u8* tmp_mem = (u8*)malloc(len*sizeof(char));
+	u8* tmp_mem = (u8*)ck_alloc(len);
 	while(cur){
 		memcpy(tmp_mem,use_mem,len);
 		memcpy(tmp_mem+cur->t_offset,cur->s_chunk,cur->s_len);//reverse(cur,tmp_mem);
@@ -2618,6 +2618,7 @@ static void calibrate_rules(char** argv, int len, u8* use_mem) {
 		}
 
 	}
+	ck_free(tmp_mem);
 	destroy_slots_focused();
 	write_to_testcase(use_mem, len);//recover out_fd
 	fault = run_target(argv, use_tmout);//use the original out_fd as input to recover trace_bits and so on.

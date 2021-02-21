@@ -3232,7 +3232,7 @@ static int is_field()
 	int cnt=0;
 	if(!ijon_rules)
 		return 0;
-	for(ijon_rule* p=ijon_rules;p->next;p=p->next){
+	for(ijon_rule* p=ijon_rules;p;p=p->next){
 		int is_new=1;
 		for(int i=0;i<cnt;i++){
 			if(A[i]==p->s_offset){

@@ -2594,24 +2594,17 @@ static void calibrate_rules(char** argv, int len, u8* use_mem) {
 		write_to_testcase(tmp_mem, len);//modify out_fd
 		fault = run_target(argv, use_tmout);//use out_fd as input
 		if(!is_max_slot_degrade()){//delete this useless rule
+			ijon_rule * t=cur;
 			if(pre==cur){
-				if(pre==candidate_rules){
-					ijon_rule * t=cur;
-					pre=cur=candidate_rules=cur->next;
-					destroy_rule(t);
-				}else{
-					ijon_rule * t=cur;
-					cur=cur->next;
-					destroy_rule(t);
+				if(candidate_rules==t){
+					candidate_rules=t->next;
 				}
+				pre=cur=t->next;
 			}else{
-				pre->next=cur->next;
-				ijon_rule * t=cur;
-				cur=cur->next;
-				destroy_rule(t);
+				pre->next=cur=t->next;
 			}
-
-		}else{
+			destroy_rule(t);
+		}else{//keep useful rules
 			pre=cur;
 			cur=cur->next;
 			cand_rule_cnt++;

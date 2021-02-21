@@ -2560,7 +2560,7 @@ static void add_rules_to_extras(){
 		p=p->next;
 	}
 }
-int check_max_slot_degrade(){
+int is_max_slot_degrade(){
 	if(!slots_focused) FATAL("This should not happen!");
 	linked_int *p=slots_focused;
 	while(p){
@@ -2593,7 +2593,7 @@ static void calibrate_rules(char** argv, int len, u8* use_mem) {
 		memcpy(tmp_mem+cur->t_offset,cur->s_chunk,cur->s_len);//reverse(cur,tmp_mem);
 		write_to_testcase(tmp_mem, len);//modify out_fd
 		fault = run_target(argv, use_tmout);//use out_fd as input
-		if(!check_max_slot_degrade()){//delete this useless rule
+		if(!is_max_slot_degrade()){//delete this useless rule
 			if(pre==cur){
 				if(pre==candidate_rules){
 					ijon_rule * t=cur;

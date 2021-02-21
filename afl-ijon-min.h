@@ -65,11 +65,9 @@ static void insert_rules_to_ijon_rules(ijon_rule * rule_head){
 		ijon_rules=rule_head;
 		return;
 	}
-	ijon_rule *p=rule_head;
 	ijon_rule * rule_tail=rule_head;
-	while(p){
-		rule_tail=p;
-		p=p->next;
+	while(rule_tail->next){
+		rule_tail=rule_tail->next;
 	}
 	rule_tail->next=ijon_rules;
 	ijon_rules=rule_head;

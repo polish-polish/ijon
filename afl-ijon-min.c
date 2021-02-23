@@ -170,6 +170,7 @@ void generate_candidate_rules(char* oldfile, char* newfile){
 		rule->next=candidate_rules;
 		candidate_rules=rule;
 	}
+	pclose(fp);
 }
 
 int ijon_store_max_input(ijon_min_state* self, int i, uint8_t* data, size_t len,u32 parent_id){
